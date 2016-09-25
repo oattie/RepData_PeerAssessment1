@@ -1,25 +1,198 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "An assignment of Reproducible Research"
+author: "Apichart Thanomkiet"
+date: "`r Sys.Date()`"
+output: html_document
 ---
 
 
 ## Loading and preprocessing the data
 
+I have set global option echo = TRUE for each code chunk.
+```{r global option}
+knitr::opts_chunk$set(echo=TRUE, result="hide")
 
+```
+
+I download the file from the internet and save it into my workplace directory.
+The file locates [here](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip). Also, I don't want it to download the file every time so I am going to cache it.
+
+```{r download, cache=TRUE}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", destfile = paste0(getwd(),"/","file.zip"))
+```
+
+I unzip the file and it the file will be extracted into my work directory automatically. I will cache it to prevent it from unzipping everytime.
+
+```{r unzip, cache=TRUE}
+unzip("file.zip")
+```
+
+The extracted file called activity.csv. I will use read.csv() to read the file into a data frame called data. 
+
+Also I don't want it to load the data everytime I rendle the Rmarkdown file so I will cache it.
+
+```{r data frame, cache=TRUE}
+data <- read.csv("activity.csv")
+dim(data)
+```
 
 ## What is mean total number of steps taken per day?
 
+I break down the steps for each day and plot a histogram the graph to see the quanity of the steps. However I break it down by aggregating the data frame So I have to reassignt he column name.
 
+```{r total steps histogram}
+agg <- aggregate(data$step, by=list(data$date), sum)
+names(agg) <- c("date","step")
+with(agg, hist(step, main="Histogram for steps in each day", xlab="Steps",ylim=c(0,40)))
+
+abline(v = mean(agg$step,na.rm=TRUE),col = "royalblue",
+ lwd = 2)
+
+abline(v = median(agg$step,na.rm=TRUE),
+ col = "red",
+ lwd = 2, lty=2)
+
+legend(x = "topright",
+ c("Mean", "Median"),
+ col = c("royalblue", "red"),
+ lwd = c( 2, 2),
+ lty = c(1,2 ))
+
+```
 
 ## What is the average daily activity pattern?
 
-
+```{r average daily activty pattern}
+avgInt <- aggregate(data$steps, by=list(data$interval), mean, na.rm=TRUE)
+plot(avgInt[,2], type="l")
+points(which.max(avgInt[,2]),avgInt[which.max(avgInt[,2]),2], col="red")
+legend(x="topright", paste0("Maximum (",round(max(avgInt[,2])),")"), col="red", pch=1)
+```
 
 ## Imputing missing values
 
+Just to get an Idea how to deal with the NAs. I first want to check which variable that contains the NAs
 
+```{r}
+colnames(data)[colSums(is.na(data)) > 0]
+```
+
+Now I want to see how many NAs in steps
+
+```{r}
+table(is.na(data$steps))
+
+barplot(table(is.na(data$steps)))
+```
+
+Now I want to impute these NAs to the data frame that I loaded from the begining.
+As per instruction, there are two options you can choose. I choose to get the average from 5 interval time.
+
+```{r}
+
+beforeImpulData <- data
+
+missing <- data[is.na(data$steps),]
+data[is.na(data$steps),1] <- sapply(missing$interval, function(x){ avgInt[which(avgInt[,1]==x),2] })
+
+```
+
+Lets see the differences before and after imputing NA values.
+
+```{r}
+newAgg <- aggregate(data$steps, by=list(data$date), sum)
+names(newAgg) <- c("date", "step")
+with(newAgg, hist(step, main="A new Histogram for steps in each day", xlab="Steps",ylim=c(0,40)))
+
+abline(v = mean(newAgg$step,na.rm=TRUE),col = "royalblue",
+ lwd = 2)
+
+abline(v = median(newAgg$step,na.rm=TRUE),
+ col = "red",
+ lwd = 2, lty=2)
+
+legend(x = "topright",
+ c("Mean", "Median"),
+ col = c("royalblue", "red"),
+ lwd = c( 2, 2),
+ lty = c(1,2 ))
+
+```
+
+It looks really similar from the original one, doesn't it?
+I have to see both of them at the same time to tell what are really different.
+I am going to plot two graphs next to each other.
+
+```{r}
+
+par(mfrow=c(1,2))
+
+with(agg, hist(step, main="An old Histogram", xlab="Steps",ylim=c(0,40)))
+abline(v = mean(agg$step,na.rm=TRUE),col = "royalblue",
+ lwd = 2)
+
+abline(v = median(agg$step,na.rm=TRUE),
+ col = "red",
+ lwd = 2, lty=2)
+
+legend(x = "topright",
+ c("Mean", "Median"),
+ col = c("royalblue", "red"),
+ lwd = c( 2, 2),
+ lty = c(1,2 ), cex=0.75)
+
+
+with(newAgg, hist(step, main="A new Histogram", xlab="Steps",ylim=c(0,40)))
+
+abline(v = mean(newAgg$step,na.rm=TRUE),col = "royalblue",
+ lwd = 2)
+
+abline(v = median(newAgg$step,na.rm=TRUE),
+ col = "red",
+ lwd = 2, lty=2)
+
+legend(x = "topright",
+ c("Mean", "Median"),
+ col = c("royalblue", "red"),
+ lwd = c( 2, 2),
+ lty = c(1,2 ), cex = 0.75)
+
+```
+
+### What are the differences? What are the impacts?
+
+- Not much different. The only thing that I notice is the increasing of the number of observations.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+I will make a factor variable called weekdayorweekend and include it into the data frame.
+
+```{r}
+data$date <- as.Date(data$date,"%Y-%m-%d")
+wday <- sapply(data$date, function(x){ if(grepl("^S(at|un)", weekdays(x, abbr=TRUE))) "Weekend" else "Weekday" })
+
+newData <- cbind(data, weekdayorweekend=wday)
+
+```
+
+Now lets see the summary
+
+```{r}
+summary(newData)
+
+```
+
+Lastly, I will plot a graph to show how average of steps from each interval goes witht the weekday and weekend.
+
+```{r}
+
+aggData <- aggregate(newData$steps, by=list(newData$interval,newData$weekdayorweekend), mean)
+names(aggData) <- c("interval","wday","steps")
+weekday <- aggData[aggData$wday == "Weekday",]
+weekend <- aggData[aggData$wday == "Weekend",]
+
+with(weekday, plot(interval,steps, type="l", col="red", main="Steps in Weekdays vs Weekends"))
+with(weekend, lines(interval, steps, type="l", col="blue"))
+legend(x="topright",c("Weekday", "Weekend"), lwd=c(2,2), col=c("red","blue"))
+```
+
